@@ -54,44 +54,18 @@ echo ""
 # Step 2: Update dataset registration
 echo "[2/4] Updating dataset registration..."
 
-# Import the new dataset class
+# Import the new dataset class (avoid circular import by using direct import)
 python -c "
 import sys
 from pathlib import Path
 
-# Add to mllm/dataset/single_image_dataset/__init__.py
-init_file = Path('mllm/dataset/single_image_dataset/__init__.py')
-content = init_file.read_text()
-
-# Check if already imported
-if 'MedicalDetectionSegmentationDataset' not in content:
-    # Add import at the end
-    content += '\nfrom .medical_detection_segmentation_dataset import MedicalDetectionSegmentationDataset, MedicalDetectionSegmentationMultiDataset\n'
-    init_file.write_text(content)
-    print('✓ Dataset class imported')
-else:
-    print('✓ Dataset class already imported')
-
-# Register in root.py
-root_file = Path('mllm/dataset/root.py')
-root_content = root_file.read_text()
-
-# Check if already registered
-if 'MedicalDetectionSegmentationDataset' not in root_content:
-    # Add registration
-    if 'DATASETS = {' in root_content:
-        root_content = root_content.replace(
-            'DATASETS = {',
-            'DATASETS = {\n    \"MedicalDetectionSegmentationDataset\": MedicalDetectionSegmentationDataset,\n    \"MedicalDetectionSegmentationMultiDataset\": MedicalDetectionSegmentationMultiDataset,'
-        )
-    else:
-        # Add after imports
-        root_content += '\n\nfrom .single_image_dataset.medical_detection_segmentation_dataset import MedicalDetectionSegmentationDataset, MedicalDetectionSegmentationMultiDataset\n\nDATASETS = {\n    \"MedicalDetectionSegmentationDataset\": MedicalDetectionSegmentationDataset,\n    \"MedicalDetectionSegmentationMultiDataset\": MedicalDetectionSegmentationMultiDataset,\n}'
-
-    root_file.write_text(root_content)
-    print('✓ Dataset registered')
-else:
-    print('✓ Dataset already registered')
+# Check if dataset class can be imported directly
+try:
+    from mllm.dataset.single_image_dataset.medical_detection_segmentation_dataset import MedicalDetectionSegmentationDataset, MedicalDetectionSegmentationMultiDataset
+    print('✓ Dataset class imported successfully')
+except ImportError as e:
+    print(f'✗ Dataset import failed: {e}')
+    sys.exit(1)
 "
 
 echo ""
@@ -99,19 +73,16 @@ echo ""
 # Step 3: Verify dataset loading
 echo "[3/4] Verifying dataset loading..."
 
-python -c "
-from mllm.dataset import prepare_data
-from mllm.config import prepare_args
+# Run comprehensive test
+bash scripts/test_medgemma_detection_segmentation_simple.py
 
-try:
-    cfg = prepare_args(['config/training_configs/medgemma_detection_segmentation_${GPU_MEMORY}.py'])
-    data = prepare_data(cfg.model_args, cfg.data_args)
-    print(f'✓ Dataset loaded successfully: {type(data).__name__}')
-    print(f'✓ Length: {len(data)} samples')
-except Exception as e:
-    print(f'✗ Dataset loading failed: {e}')
-    exit(1)
-"
+if [ $? -eq 0 ]; then
+    echo "✓ All tests passed!"
+else
+    echo "❌ Some tests failed!"
+    echo "Please check the error messages above."
+    exit 1
+fi
 
 echo ""
 
@@ -120,12 +91,10 @@ echo "[4/4] Preparing training..."
 
 if [ "$GPU_MEMORY" = "4gb" ]; then
     CONFIG_FILE="config/training_configs/medgemma_detection_segmentation_4gb.py"
-    TRAIN_SCRIPT="scripts/train_medgemma_4gb.sh"
     echo "Using 4GB configuration"
 elif [ "$GPU_MEMORY" = "16gb" ]; then
-    CONFIG_FILE="config/training_configs/medgemma_detection_segmentation_16gb.py"
-    TRAIN_SCRIPT="scripts/train_medgemma_16gb.sh"
-    echo "Using 16GB configuration"
+    CONFIG_FILE="config/training_configs/medgemma_detection_segmentation_simple_16gb.py"
+    echo "Using 16GB simple configuration (no circular import)"
 else
     echo "ERROR: Invalid GPU memory option: $GPU_MEMORY"
     echo "Options: 4gb, 16gb"
@@ -137,6 +106,8 @@ echo "Config file: $CONFIG_FILE"
 # Check if required files exist
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "ERROR: Config file not found: $CONFIG_FILE"
+    echo "Available configs:"
+    ls -la config/training_configs/medgemma_detection_segmentation*
     exit 1
 fi
 

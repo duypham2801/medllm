@@ -19,11 +19,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from mllm.dataset.single_image_dataset.single_image_dataset import SingleImageDataset
-from mllm.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
-
-
-class MedicalDetectionSegmentationDataset(SingleImageDataset):
+class MedicalDetectionSegmentationDataset(Dataset):
     """
     Medical Detection + Segmentation Dataset for MedGemma
 
