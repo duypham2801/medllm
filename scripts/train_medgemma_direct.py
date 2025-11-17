@@ -172,7 +172,7 @@ class MedGemmaTrainer:
         """Load MedGemma model with adapters"""
         print(f"Loading model from {self.model_path}...")
 
-        # Load tokenizer
+        # Load tokenizer first
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_path,
             padding_side='right',
@@ -181,12 +181,35 @@ class MedGemmaTrainer:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        # Load model
+        # Add coordinate tokens before loading model
+        coordinate_tokens = ['<obj_vis_s>', '<obj_vis_e>']
+        tokens_to_add = [token for token in coordinate_tokens if token not in self.tokenizer.get_vocab()]
+
+        if tokens_to_add:
+            print(f"Adding special tokens before model loading: {tokens_to_add}")
+            old_vocab_size = self.tokenizer.vocab_size
+            self.tokenizer.add_special_tokens({'additional_special_tokens': tokens_to_add})
+            new_vocab_size = self.tokenizer.vocab_size
+            print(f"Vocab size: {old_vocab_size} → {new_vocab_size}")
+
+        # Load model with correct vocabulary size
         self.model = AutoModelForCausalLM.from_pretrained(
             self.model_path,
             torch_dtype=torch.float16,
-            device_map='auto'
+            device_map='auto',
+            vocab_size=self.tokenizer.vocab_size  # Important: match tokenizer vocab size
         )
+
+        # Verify embedding sizes match
+        model_vocab_size = self.model.get_input_embeddings().weight.size(0)
+        tokenizer_vocab_size = self.tokenizer.vocab_size
+        print(f"Model embedding size: {model_vocab_size}")
+        print(f"Tokenizer vocab size: {tokenizer_vocab_size}")
+
+        if model_vocab_size != tokenizer_vocab_size:
+            print(f"⚠️  Mismatch! Resizing model embeddings to match tokenizer...")
+            self.model.resize_token_embeddings(tokenizer_vocab_size)
+            print(f"✅ Model embeddings resized to {tokenizer_vocab_size}")
 
         # Handle LoRA adapters - either load existing or create new
         if (self.use_existing_adapters and self.adapter_path and
@@ -229,7 +252,7 @@ class MedGemmaTrainer:
 
     def prepare_data(self):
         """Prepare dataset"""
-        # Create dataset first
+        # Create dataset (tokenizer already configured in load_model)
         train_dataset = DirectMedicalDataset(
             self.data_file,
             self.image_root,
@@ -238,21 +261,19 @@ class MedGemmaTrainer:
             max_length=512
         )
 
-        # Resize model embeddings for new tokens (safer approach)
-        if hasattr(self.model, 'resize_token_embeddings'):
-            old_size = self.model.get_input_embeddings().weight.size(0)
-            new_size = self.tokenizer.vocab_size
-            if new_size > old_size:
-                print(f"Resizing embeddings from {old_size} to {new_size}")
-                self.model.resize_token_embeddings(new_size)
-                print("✅ Embeddings resized successfully")
-            elif new_size < old_size:
-                print(f"⚠️  New vocab size ({new_size}) is smaller than old ({old_size})")
-                print("   This might indicate tokenizer issues. Proceeding with caution.")
-            else:
-                print(f"✅ Embeddings size matches ({new_size})")
+        # Verify model and tokenizer compatibility
+        model_vocab_size = self.model.get_input_embeddings().weight.size(0)
+        tokenizer_vocab_size = self.tokenizer.vocab_size
+
+        print(f"Final verification - Model vocab: {model_vocab_size}, Tokenizer vocab: {tokenizer_vocab_size}")
+
+        if model_vocab_size != tokenizer_vocab_size:
+            print("⚠️  Vocabulary size mismatch detected!")
+            print("   This may cause index out of bounds errors.")
+            print("   Please check tokenizer and model compatibility.")
+            return None
         else:
-            print("⚠️  Model does not support embedding resizing")
+            print("✅ Model and tokenizer vocabularies match")
 
         # Split into train/validation
         total_size = len(train_dataset)
@@ -273,7 +294,11 @@ class MedGemmaTrainer:
         model = self.load_model()
 
         # Then prepare data (to ensure tokenizer has been set up)
-        train_dataset, val_dataset = self.prepare_data()
+        result = self.prepare_data()
+        if result is None:
+            print("❌ Data preparation failed due to vocabulary mismatch")
+            return None
+        train_dataset, val_dataset = result
 
         # Custom data collator that handles our format
         def custom_data_collator(features):
@@ -360,6 +385,8 @@ class MedGemmaTrainer:
 
         print("Training completed!")
 
+        return True
+
 def main():
     print("🚀 Direct MedGemma Training")
     print("=" * 50)
@@ -398,9 +425,13 @@ def main():
 
     # Start training
     try:
-        trainer.train()
-        print("✅ Training completed successfully!")
-        return 0
+        success = trainer.train()
+        if success:
+            print("✅ Training completed successfully!")
+            return 0
+        else:
+            print("❌ Training failed!")
+            return 1
     except Exception as e:
         print(f"❌ Training failed: {e}")
         import traceback
