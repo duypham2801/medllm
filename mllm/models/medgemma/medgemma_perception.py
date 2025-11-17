@@ -76,16 +76,19 @@ class MedGemmaPerception(GemmaForCausalLM):
             decoder_config_dict = config.decoder_config
             config.decoder_config = type(config)(**decoder_config_dict)
 
-        # For text_config, preserve it as Gemma3 needs it for vocab_size
-        if hasattr(config, 'text_config') and isinstance(config.text_config, dict):
-            from transformers import GemmaConfig
-            text_config_dict = config.text_config
-            config.text_config = GemmaConfig(**text_config_dict)
+        # Handle text_config (can be dict or already a Config object)
+        if hasattr(config, 'text_config') and config.text_config is not None:
+            # If it's a dict, convert to GemmaConfig
+            if isinstance(config.text_config, dict):
+                from transformers import GemmaConfig
+                text_config_dict = config.text_config
+                config.text_config = GemmaConfig(**text_config_dict)
 
             # Copy essential attributes from text_config to main config
+            # (regardless of whether text_config was dict or Config)
             # GemmaModel expects these at top level, not in text_config
             essential_attrs = ['vocab_size', 'hidden_size', 'num_hidden_layers',
-                             'num_attention_heads', 'intermediate_size']
+                             'num_attention_heads', 'intermediate_size', 'max_position_embeddings']
             for attr in essential_attrs:
                 if hasattr(config.text_config, attr) and not hasattr(config, attr):
                     setattr(config, attr, getattr(config.text_config, attr))
@@ -251,18 +254,20 @@ class MedGemmaPerception(GemmaForCausalLM):
             # Use the same config class as the main config
             config.decoder_config = type(config)(**decoder_config_dict)
 
-        # Convert text_config from dict to Config object if needed
-        # BUT preserve it (don't set to None) as Gemma3 needs it for vocab_size
-        if hasattr(config, 'text_config') and isinstance(config.text_config, dict):
-            text_config_dict = config.text_config
-            # Use GemmaConfig for text_config
-            from transformers import GemmaConfig
-            config.text_config = GemmaConfig(**text_config_dict)
+        # Handle text_config (can be dict or already a Config object)
+        if hasattr(config, 'text_config') and config.text_config is not None:
+            # If it's a dict, convert to GemmaConfig
+            if isinstance(config.text_config, dict):
+                text_config_dict = config.text_config
+                # Use GemmaConfig for text_config
+                from transformers import GemmaConfig
+                config.text_config = GemmaConfig(**text_config_dict)
 
             # Copy essential attributes from text_config to main config
+            # (regardless of whether text_config was dict or Config)
             # GemmaModel expects these at top level, not in text_config
             essential_attrs = ['vocab_size', 'hidden_size', 'num_hidden_layers',
-                             'num_attention_heads', 'intermediate_size']
+                             'num_attention_heads', 'intermediate_size', 'max_position_embeddings']
             for attr in essential_attrs:
                 if hasattr(config.text_config, attr) and not hasattr(config, attr):
                     setattr(config, attr, getattr(config.text_config, attr))
