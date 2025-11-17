@@ -70,7 +70,7 @@ training_args = dict(
     save_strategy='steps',
     save_steps=500,
     save_total_limit=3,              # Keep only last 3 checkpoints
-    eval_strategy='steps',
+    evaluation_strategy='steps',     # Use 'evaluation_strategy' for compatibility
     eval_steps=500,
 
     # Learning rate - FLARE25 defaults

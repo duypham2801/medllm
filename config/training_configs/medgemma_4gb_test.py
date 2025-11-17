@@ -77,7 +77,7 @@ training_args = dict(
 
     # Checkpointing
     save_strategy='no',
-    eval_strategy='no',
+    evaluation_strategy='no',     # Use 'evaluation_strategy' for compatibility
     logging_steps=1,
     logging_first_step=True,
 
