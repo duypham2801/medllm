@@ -67,6 +67,13 @@ class MedGemmaPerception(GemmaForCausalLM):
     config_class = MedGemmaConfig
 
     def __init__(self, config: MedGemmaConfig):
+        # Fix for transformers >= 4.57: Ensure decoder_config is not a dict
+        # This prevents AttributeError: 'dict' object has no attribute 'to_dict'
+        # when GenerationConfig.from_model_config() is called
+        if hasattr(config, 'decoder_config') and isinstance(config.decoder_config, dict):
+            # Remove decoder_config if it's a dict (will be auto-created properly)
+            delattr(config, 'decoder_config')
+
         super(MedGemmaPerception, self).__init__(config)
         self.config = config
 
