@@ -79,15 +79,18 @@ fp16 = True
 
 ```python
 # Full FLARE25 settings
-load_in_8bit = True          # 8-bit (better than 4-bit)
+load_in_4bit = True          # 4-bit (REQUIRED for FLARE25 adapters)
 lora_r = 64                  # FLARE25 default
 image_token_len = 256        # Full tokens
 max_length = 2048            # Medical report length
 per_device_train_batch_size = 4
-bf16 = True                  # T4 supports bfloat16
+fp16 = True                  # T4 (Turing) supports FP16
+bf16 = False                 # T4 does NOT support BF16
 ```
 
-**Memory**: ~11GB / 16GB (comfortable)
+**Memory**: ~9.3GB / 16GB (comfortable headroom!)
+
+**Important**: FLARE25 adapters require 4-bit quantization (not 8-bit) for compatibility
 
 ---
 
@@ -380,7 +383,29 @@ tf32 = False  # T4 doesn't have TF32 cores
 - **Turing** (T4, GTX 1660, RTX 2080): FP16 ✅, BF16 ❌, TF32 ❌
 - **Ampere+** (RTX 3090, A100): FP16 ✅, BF16 ✅, TF32 ✅
 
-### 4. Out of Memory (4GB GPU)
+### 4. LoRA Adapter Loading Error (SCB attribute)
+
+**Error**: `AttributeError: 'model.layers.0.self_attn.q_proj.SCB' is neither a parameter, buffer, nor extra state.`
+**Cause**: Quantization mismatch - FLARE25 adapters were trained with **4-bit quantization** but being loaded with 8-bit
+
+**Solution**: Use 4-bit quantization when loading FLARE25 adapters
+```python
+# In config file, change:
+load_in_4bit = True   # REQUIRED for FLARE25 adapters
+load_in_8bit = False  # Don't use 8-bit
+
+# The FLARE25 LoRA adapters have 4-bit specific parameters (SCB)
+# that are incompatible with 8-bit quantization
+```
+
+**Why this happens**:
+- `SCB` (Scale and Bias) is a parameter specific to 4-bit quantization in bitsandbytes
+- FLARE25 adapters were trained with 4-bit quantization and saved those parameters
+- Loading them into an 8-bit quantized model causes a parameter mismatch
+
+**Note**: This is already fixed in `medgemma_16gb_medical.py` (updated to use 4-bit)
+
+### 5. Out of Memory (4GB GPU)
 
 **Solution 1**: Reduce memory usage
 ```python
@@ -398,7 +423,7 @@ CUDA_VISIBLE_DEVICES="" python mllm/pipeline/finetune.py ...
 - Vast.ai: RTX 3090 24GB (~$0.30/hr)
 - RunPod: Similar pricing
 
-### 5. Config Not Found
+### 6. Config Not Found
 
 ```bash
 # Make sure you're in project root
@@ -408,7 +433,7 @@ cd /home/dp/Duy/ThS/perceptionGPT
 ls config/training_configs/medgemma_4gb_test.py
 ```
 
-### 6. Vision Processing Errors
+### 7. Vision Processing Errors
 
 MedGemma has integrated vision processing, so no separate CLIP tower is needed. If you see vision-related errors, make sure you're using `type='medgemma'`, not `type='shikra'`.
 

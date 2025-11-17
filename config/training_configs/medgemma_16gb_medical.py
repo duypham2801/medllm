@@ -137,9 +137,10 @@ model_args = dict(
     model_name_or_path=_model_path,
     adapter_path=_adapter_path,
 
-    # Quantization - 8-bit for good balance of memory and accuracy
-    load_in_4bit=False,
-    load_in_8bit=True,
+    # Quantization - 4-bit to match FLARE25 adapter training
+    # IMPORTANT: FLARE25 adapters were trained with 4-bit, must use same for loading
+    load_in_4bit=True,
+    load_in_8bit=False,
 
     # LoRA Configuration - using FLARE25 defaults
     lora_enable=True,
@@ -233,13 +234,15 @@ To use your own medical imaging dataset:
    - Report Generation: Medical report from image
 
 Memory Estimation for T4 16GB:
-- Base model (8-bit): ~4.5GB
+- Base model (4-bit): ~2.5GB  (changed from 8-bit to match FLARE25)
 - LoRA parameters (r=64): ~130MB
 - Vision encoder: ~500MB
 - Activations (batch=4, seq=2048): ~6GB
 - Gradients: ~130MB
-- Total: ~11GB
-Status: ✅ Comfortable headroom
+- Total: ~9.3GB
+Status: ✅ Comfortable headroom (more than with 8-bit!)
+
+Note: FLARE25 adapters require 4-bit quantization for compatibility
 
 Training Speed Estimate:
 - T4 16GB: ~2-3 sec/step (batch=4)
