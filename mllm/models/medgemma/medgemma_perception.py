@@ -84,20 +84,21 @@ class MedGemmaPerception(GemmaForCausalLM):
                 text_config_dict = config.text_config
                 config.text_config = GemmaConfig(**text_config_dict)
 
-            # Copy essential attributes from text_config to main config
-            # (regardless of whether text_config was dict or Config)
+            # Copy ALL attributes from text_config to main config
             # GemmaModel expects these at top level, not in text_config
-            essential_attrs = [
-                'vocab_size', 'hidden_size', 'num_hidden_layers',
-                'num_attention_heads', 'num_key_value_heads',  # For GQA
-                'intermediate_size', 'max_position_embeddings',
-                'head_dim', 'hidden_act', 'hidden_activation',
-                'rms_norm_eps', 'rope_theta', 'attention_bias',
-                'attention_dropout', 'mlp_bias'
-            ]
-            for attr in essential_attrs:
-                if hasattr(config.text_config, attr) and not hasattr(config, attr):
-                    setattr(config, attr, getattr(config.text_config, attr))
+            # We copy everything to ensure compatibility with all Gemma variants
+            for attr_name in dir(config.text_config):
+                # Skip private/magic methods and methods
+                if attr_name.startswith('_') or callable(getattr(config.text_config, attr_name)):
+                    continue
+                # Skip if already exists in main config (don't override)
+                if hasattr(config, attr_name):
+                    continue
+                # Copy attribute
+                try:
+                    setattr(config, attr_name, getattr(config.text_config, attr_name))
+                except Exception:
+                    pass  # Skip attributes that can't be set
 
         super(MedGemmaPerception, self).__init__(config)
         self.config = config
@@ -269,20 +270,21 @@ class MedGemmaPerception(GemmaForCausalLM):
                 from transformers import GemmaConfig
                 config.text_config = GemmaConfig(**text_config_dict)
 
-            # Copy essential attributes from text_config to main config
-            # (regardless of whether text_config was dict or Config)
+            # Copy ALL attributes from text_config to main config
             # GemmaModel expects these at top level, not in text_config
-            essential_attrs = [
-                'vocab_size', 'hidden_size', 'num_hidden_layers',
-                'num_attention_heads', 'num_key_value_heads',  # For GQA
-                'intermediate_size', 'max_position_embeddings',
-                'head_dim', 'hidden_act', 'hidden_activation',
-                'rms_norm_eps', 'rope_theta', 'attention_bias',
-                'attention_dropout', 'mlp_bias'
-            ]
-            for attr in essential_attrs:
-                if hasattr(config.text_config, attr) and not hasattr(config, attr):
-                    setattr(config, attr, getattr(config.text_config, attr))
+            # We copy everything to ensure compatibility with all Gemma variants
+            for attr_name in dir(config.text_config):
+                # Skip private/magic methods and methods
+                if attr_name.startswith('_') or callable(getattr(config.text_config, attr_name)):
+                    continue
+                # Skip if already exists in main config (don't override)
+                if hasattr(config, attr_name):
+                    continue
+                # Copy attribute
+                try:
+                    setattr(config, attr_name, getattr(config.text_config, attr_name))
+                except Exception:
+                    pass  # Skip attributes that can't be set
 
         # Pass cleaned config
         kwargs['config'] = config
