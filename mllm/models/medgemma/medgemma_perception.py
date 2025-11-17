@@ -87,8 +87,14 @@ class MedGemmaPerception(GemmaForCausalLM):
             # Copy essential attributes from text_config to main config
             # (regardless of whether text_config was dict or Config)
             # GemmaModel expects these at top level, not in text_config
-            essential_attrs = ['vocab_size', 'hidden_size', 'num_hidden_layers',
-                             'num_attention_heads', 'intermediate_size', 'max_position_embeddings']
+            essential_attrs = [
+                'vocab_size', 'hidden_size', 'num_hidden_layers',
+                'num_attention_heads', 'num_key_value_heads',  # For GQA
+                'intermediate_size', 'max_position_embeddings',
+                'head_dim', 'hidden_act', 'hidden_activation',
+                'rms_norm_eps', 'rope_theta', 'attention_bias',
+                'attention_dropout', 'mlp_bias'
+            ]
             for attr in essential_attrs:
                 if hasattr(config.text_config, attr) and not hasattr(config, attr):
                     setattr(config, attr, getattr(config.text_config, attr))
@@ -266,8 +272,14 @@ class MedGemmaPerception(GemmaForCausalLM):
             # Copy essential attributes from text_config to main config
             # (regardless of whether text_config was dict or Config)
             # GemmaModel expects these at top level, not in text_config
-            essential_attrs = ['vocab_size', 'hidden_size', 'num_hidden_layers',
-                             'num_attention_heads', 'intermediate_size', 'max_position_embeddings']
+            essential_attrs = [
+                'vocab_size', 'hidden_size', 'num_hidden_layers',
+                'num_attention_heads', 'num_key_value_heads',  # For GQA
+                'intermediate_size', 'max_position_embeddings',
+                'head_dim', 'hidden_act', 'hidden_activation',
+                'rms_norm_eps', 'rope_theta', 'attention_bias',
+                'attention_dropout', 'mlp_bias'
+            ]
             for attr in essential_attrs:
                 if hasattr(config.text_config, attr) and not hasattr(config, attr):
                     setattr(config, attr, getattr(config.text_config, attr))
