@@ -5,7 +5,7 @@ import transformers
 from torch import nn
 from mllm.dataset import prepare_data, prepare_target_processor
 
-from ..perceptionGPT import perceptionGPT
+from ..perceptionGPT import PerceptionGPT
 from peft import get_peft_config, LoraConfig, TaskType, get_peft_model
 PREPROCESSOR = Dict[str, Any]
 from mllm.dataset.root import (
@@ -21,14 +21,18 @@ DEFAULT_UNK_TOKEN = "<unk>"
 
 
 def load_pretrained_perceptionGPT(model_args, training_args) -> Tuple[nn.Module, PREPROCESSOR]:
-    if getattr(model_args, "type", "perceptionGPT") == "perceptionGPT":
-        model = perceptionGPT.from_pretrained(
+    model_type = getattr(model_args, "type", "perceptionGPT")
+
+    # Both 'shikra' and 'perceptionGPT' use the same PerceptionGPT model class
+    # 'shikra' is the base, 'perceptionGPT' adds autoencoder features
+    if model_type in ["perceptionGPT", "shikra"]:
+        model = PerceptionGPT.from_pretrained(
             model_args.model_name_or_path,
             model_args = model_args,
             cache_dir=model_args.cache_dir,
         )
     else:
-        raise NotImplementedError(f"{getattr(model_args, 'type')} not implemented!")
+        raise NotImplementedError(f"{model_type} not implemented! Supported: 'shikra', 'perceptionGPT'")
     model.config.use_cache = False
     if model_args.freeze_backbone:
         model.model.requires_grad_(False)
@@ -82,7 +86,8 @@ def load_pretrained_perceptionGPT(model_args, training_args) -> Tuple[nn.Module,
                                       tokenizer=tokenizer,
                                       device=training_args.device,
                                       tune_mm_mlp_adapter=model_args.tune_mm_mlp_adapter,
-                                      pretrain_mm_mlp_adapter=model_args.pretrain_mm_mlp_adapter)
+                                      pretrain_mm_mlp_adapter=model_args.pretrain_mm_mlp_adapter,
+                                      vision_config=vision_config)
     preprocessor = dict(
         image=model_vision_dict['image_processor'],
         text=tokenizer,

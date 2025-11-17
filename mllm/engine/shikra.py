@@ -2,7 +2,11 @@ import os
 from typing import Optional
 
 import torch
-from transformers.trainer import unwrap_model
+# Fixed: unwrap_model moved in transformers 4.46+
+try:
+    from transformers.trainer import unwrap_model
+except ImportError:
+    from transformers.modeling_utils import unwrap_model
 
 from .base_engine import TrainerForMMLLM
 

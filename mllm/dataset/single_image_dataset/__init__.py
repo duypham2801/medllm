@@ -20,3 +20,6 @@ from .flickr_mask import FlickrMaskDataset
 from .ref_mask_refcoco import REFMaskRefcocoDataset
 from .reg import REGDataset, GCDataset
 from .reg_mask import GCMaskDataset
+# Medical imaging datasets
+from .medical_detection_dataset import MedicalDetectionDataset, MedicalDetectionJSONLDataset
+from .medical_segmentation_dataset import MedicalSegmentationDataset, MedicalSegmentationJSONLDataset

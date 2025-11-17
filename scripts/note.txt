@@ -1,0 +1,39 @@
+# Model 3B Options cho PerceptionGPT
+
+## Recommended 3B Models:
+
+### 1. Phi-3.5-mini-instruct (3.8B) - RECOMMENDED
+- Model: microsoft/Phi-3.5-mini-instruct
+- Size: 3.8B parameters
+- Quality: Rất tốt, Microsoft official
+- Có thể cần adapt config một chút
+
+### 2. StableLM-3B
+- Model: stabilityai/stablelm-3b-4e1t
+- Size: 3B parameters
+- Tốt cho general tasks
+
+### 3. TinyLlama (1.1B) - FASTEST for testing
+- Model: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+- Size: 1.1B only
+- Nhanh nhất để test code
+
+## Để test NHANH NHẤT với dummy data:
+
+```bash
+# Không cần download gì cả - chỉ test code
+bash scripts/test_training.sh
+```
+
+Script sẽ:
+1. Tạo 10 ảnh dummy
+2. Train 3 steps để verify code
+3. Auto-download model nếu cần (~7GB cho vicuna-7b)
+
+Hoặc update config/training_configs/test_3b_dummy.py:
+- Line 58: Đổi model_name_or_path thành model bạn muốn
+
+## Note về VRAM:
+- GPU 3.8GB + 8-bit + LoRA: Có thể chạy được cả 7B
+- Nếu muốn an toàn: Dùng 3B model
+- Nếu chỉ test code: Dùng dummy data + bất kỳ model nào

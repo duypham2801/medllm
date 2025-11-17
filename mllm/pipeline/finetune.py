@@ -478,7 +478,7 @@ def main():
     collator_kwargs = cfg.data_args.collator_kwargs
     trainer_cls, data_collator_dict = prepare_trainer_collator(cfg.model_args, preprocessor, collator_kwargs)
     dataset, compute_metrics = prepare_data(cfg.data_args, cfg.model_args, training_args, preprocessor)
-    train_dataset, val_datasets = dataset['train'], dataset['multival']
+    train_dataset, val_datasets = dataset['train'], dataset.get('multival', None)
     total_global_steps = 200
     if training_args.do_train:
         total_global_steps = training_args.num_train_epochs * len(train_dataset) // (

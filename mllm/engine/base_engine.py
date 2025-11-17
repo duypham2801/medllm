@@ -11,8 +11,18 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 from transformers import Seq2SeqTrainer, DataCollator, DataCollatorForSeq2Seq
-from transformers.deepspeed import is_deepspeed_zero3_enabled
-from transformers.trainer import TRAINER_STATE_NAME, unwrap_model
+# Fixed: is_deepspeed_zero3_enabled moved to integrations in transformers 4.57+
+try:
+    from transformers.deepspeed import is_deepspeed_zero3_enabled
+except ImportError:
+    from transformers.integrations import is_deepspeed_zero3_enabled
+
+# Fixed: unwrap_model location changed in transformers 4.46+
+try:
+    from transformers.trainer import TRAINER_STATE_NAME, unwrap_model
+except ImportError:
+    from transformers.trainer import TRAINER_STATE_NAME
+    from transformers.modeling_utils import unwrap_model
 from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 
 logger = logging.getLogger(__name__)

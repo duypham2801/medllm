@@ -31,3 +31,5 @@ ckpts*
 
 # Demo
 serve_images/
+
+/ckpt/*

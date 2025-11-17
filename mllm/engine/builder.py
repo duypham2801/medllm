@@ -8,6 +8,8 @@ from .base_engine import TrainerForMMLLM, Seq2Seq2DataCollatorWithImage
 
 TYPE2TRAINER = {
     'perceptionGPT': PerceptionTrainer,
+    'shikra': PerceptionTrainer,
+    'medgemma': PerceptionTrainer,
 }
 
 

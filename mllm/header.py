@@ -2,7 +2,11 @@ import torch
 import datetime
 import types
 import deepspeed
-from transformers.deepspeed import HfDeepSpeedConfig
+# Fixed: HfDeepSpeedConfig moved to integrations in transformers 4.57+
+try:
+    from transformers.deepspeed import HfDeepSpeedConfig
+except ImportError:
+    from transformers.integrations import HfDeepSpeedConfig
 import transformers
 import numpy as np
 from collections import OrderedDict

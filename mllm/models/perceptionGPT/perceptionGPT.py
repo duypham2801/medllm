@@ -91,9 +91,10 @@ class ShikraLlamaModel(LlamaModel):
 
         if hasattr(config, "mm_vision_tower"):
             # TODO: here is for debuggin
-            self.vision_tower = [CLIPVisionModel.from_pretrained(config.mm_vision_tower).cuda()]
+            # Note: .cuda() removed - device placement will be handled by trainer
+            self.vision_tower = [CLIPVisionModel.from_pretrained(config.mm_vision_tower)]
             # use interpolated image feature for better results, but needs extra overhead. Can simply use CLIP-336X336
-            self.vision_tower_custom = [CLIPVisionModelCustom(config.mm_vision_tower).cuda()]
+            self.vision_tower_custom = [CLIPVisionModelCustom(config.mm_vision_tower)]
             for p in self.vision_tower_custom[0].parameters():
                 p.requires_grad = False
             for p in self.vision_tower[0].parameters():
@@ -114,10 +115,14 @@ class ShikraLlamaModel(LlamaModel):
 
         image_processor = CLIPImageProcessor.from_pretrained(vision_tower)
 
-        if not hasattr(self, 'vision_tower'):
-            vision_tower = CLIPVisionModel(vision_tower)
+        # Load vision tower if not already loaded
+        if hasattr(self, 'vision_tower') and self.vision_tower is not None:
+            # Use existing vision tower
+            vision_tower = self.vision_tower[0] if isinstance(self.vision_tower, list) else self.vision_tower
         else:
-            vision_tower = self.vision_tower[0]
+            # Load new vision tower
+            vision_tower = CLIPVisionModel.from_pretrained(vision_tower)
+
         if freeze_vision_tower:
             vision_tower.requires_grad_(False)
         else:
@@ -381,10 +386,12 @@ class PerceptionGPT(LlamaForCausalLM):
 
     def get_vision_tower(self):
         model = self.get_model()
-        vision_tower = model.vision_tower
-        if type(vision_tower) is list:
-            vision_tower = vision_tower[0]
-        return vision_tower
+        if hasattr(model, 'vision_tower') and model.vision_tower is not None:
+            vision_tower = model.vision_tower
+            if type(vision_tower) is list:
+                vision_tower = vision_tower[0]
+            return vision_tower
+        return None
 
     def init_bbox_head(self, config):
         self.bbox_decoder = MLP(4096, 512, 4, 3, ifsigmoid=True)
@@ -581,8 +588,13 @@ class PerceptionGPT(LlamaForCausalLM):
         return model_inputs
 
     def initialize_vision_tokenizer(self, mm_use_im_start_end, tokenizer, device,
-                                    tune_mm_mlp_adapter=False, pretrain_mm_mlp_adapter=None):
-        vision_config = self.get_vision_tower().config
+                                    tune_mm_mlp_adapter=False, pretrain_mm_mlp_adapter=None, vision_config=None):
+        if vision_config is None:
+            vision_tower = self.get_vision_tower()
+            if vision_tower is not None:
+                vision_config = vision_tower.config
+            else:
+                raise ValueError("vision_config must be provided when vision_tower is not initialized")
         vision_config.use_im_start_end = mm_use_im_start_end
         tokenizer.add_tokens([DEFAULT_IMAGE_PATCH_TOKEN], special_tokens=True)
         self.resize_token_embeddings(len(tokenizer))

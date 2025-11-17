@@ -2,7 +2,11 @@ import os
 from typing import Optional
 
 import torch
-from transformers.trainer import unwrap_model
+# Fixed: unwrap_model moved in transformers 4.46+
+try:
+    from transformers.trainer import unwrap_model
+except ImportError:
+    from transformers.modeling_utils import unwrap_model
 
 from .shikra import ShikraTrainer
 import os
@@ -18,10 +22,20 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 from transformers import Seq2SeqTrainer, DataCollator, DataCollatorForSeq2Seq
-from transformers.deepspeed import is_deepspeed_zero3_enabled
-from transformers.trainer import TRAINER_STATE_NAME, unwrap_model, logger
+# Fixed: deepspeed functions moved to integrations in transformers 4.57+
+try:
+    from transformers.deepspeed import is_deepspeed_zero3_enabled, deepspeed_init
+except ImportError:
+    from transformers.integrations import is_deepspeed_zero3_enabled, deepspeed_init
+
+# Fixed: unwrap_model and logger import
+try:
+    from transformers.trainer import TRAINER_STATE_NAME, unwrap_model, logger
+except ImportError:
+    from transformers.trainer import TRAINER_STATE_NAME, logger
+    from transformers.modeling_utils import unwrap_model
+
 from transformers.trainer_utils import EvalLoopOutput
-from transformers.deepspeed import deepspeed_init, is_deepspeed_zero3_enabled
 
 from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 import numpy as np
