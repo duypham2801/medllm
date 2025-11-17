@@ -10,47 +10,91 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Paper**: [PerceptionGPT: Effectively Fusing Visual Perception into LLM](https://arxiv.org/abs/2311.06612)
 
-## Environment Setup
+## Development Commands and Workflows
 
+### Environment Setup
 ```bash
 # Create and activate conda environment
 conda create -n perceptiongpt python=3.10
 conda activate perceptiongpt
 
-# Automated installation (recommended)
+# Complete automated installation (recommended)
 bash scripts/install_packages.sh
 
-# Manual installation
-pip install -r requirements.txt  # or requirements_fixed.txt for pinned versions
+# Manual installation with pinned versions
+pip install -r requirements_fixed.txt
+
+# Verify installation
+python scripts/test_setup.py
 ```
 
-## Training
-
-### Basic Training Commands
-
-#### PerceptionGPT (LLaMA-based)
+### Model Downloads
 ```bash
-# Multi-GPU (8 GPUs)
+# Download LLaVA checkpoint for PerceptionGPT
+bash scripts/download_data.sh
+
+# Download MedGemma base model + FLARE25 adapters
+bash scripts/download_medgemma.sh
+
+# Check download status
+ls -lh ckpt/
+```
+
+### Training Commands
+
+#### PerceptionGPT (Visual Grounding)
+```bash
+# Multi-GPU training (8 GPUs)
 bash scripts/run.sh
 
-# Single GPU (4GB) - Optimized
+# Single GPU training optimized for 4GB
 bash scripts/run_4gb.sh
 
-# Direct command
+# Direct training with specific config
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 deepspeed --master_port 30005 \
-    mllm/pipeline/finetune.py config/shikra3_rec3_mask_box_cls_refcoco_all.py
+    mllm/pipeline/finetune.py config/training_configs/shikra3_rec3_mask_box_cls_refcoco_all.py
+
+# Custom config training
+python mllm/pipeline/finetune.py config/training_configs/your_custom_config.py
 ```
 
 #### MedGemma (Medical Imaging)
 ```bash
-# Test on 4GB GPU
+# Test training on 4GB GPU (GTX 1650)
 bash scripts/test_medgemma_4gb.sh
 
-# Test on 16GB GPU (T4, etc.)
+# Test training on 16GB GPU (T4, RTX)
 bash scripts/test_medgemma_16gb.sh
 
-# Direct command
+# Full medical training (16GB GPU)
+bash scripts/train_medgemma_16gb.sh
+
+# Direct MedGemma training
 python mllm/pipeline/finetune.py config/training_configs/medgemma_4gb_test.py
+```
+
+### Development and Debugging
+```bash
+# Test configuration loading
+python scripts/test_config.py
+
+# Run quick training test (3 steps)
+bash scripts/test_training.sh
+
+# Monitor GPU usage during development
+watch -n 1 nvidia-smi
+
+# Check training logs
+tail -f exp/*/logs/training.log
+
+# Validate dataset format
+python -c "
+from mllm.dataset import prepare_data
+from mllm.config import prepare_args
+cfg = prepare_args(['your_config.py'])
+data = prepare_data(cfg.model_args, cfg.data_args)
+print(f'Dataset loaded: {len(data)} samples')
+"
 ```
 
 ### Configuration Files
@@ -268,25 +312,56 @@ Config in `deepspeed/ds_config_zero3_offload_4gb.json`:
 
 ## Testing and Validation
 
-### Test Setup
+### Environment Validation
 ```bash
-# Verify installation and paths
+# Comprehensive installation and setup test
 python scripts/test_setup.py
 
-# Test config loading
+# Test specific configuration loading
 python scripts/test_config.py
 
 # Quick 3-step training test (MedGemma)
 bash scripts/test_medgemma_4gb.sh
 ```
 
+### Model and Setup Testing
+```bash
+# Test PerceptionGPT model loading
+python -c "
+from mllm.models.perceptionGPT import PerceptionGPT
+from mllm.config import prepare_args
+print('✓ PerceptionGPT imports successful')
+"
+
+# Test MedGemma model loading (requires download)
+python -c "
+from mllm.models.medgemma import MedGemmaPerception
+print('✓ MedGemma imports successful')
+"
+
+# Test dataset loading
+python -c "
+from mllm.dataset import prepare_data
+from mllm.config import prepare_args
+cfg = prepare_args(['config/training_configs/medgemma_4gb_test.py'])
+data = prepare_data(cfg.model_args, cfg.data_args)
+print(f'✓ Dataset loaded: {type(data).__name__}')
+"
+```
+
 ### Monitor Training
 ```bash
-# GPU usage
+# GPU usage (real-time)
 watch -n 0.5 nvidia-smi
 
-# TensorBoard
-tensorboard --logdir exp/perceptionGPT_4gb/runs
+# Training logs and progress
+tail -f exp/*/logs/training.log
+
+# TensorBoard for visualization
+tensorboard --logdir exp/
+
+# Check checkpoint saves
+ls -la exp/*/checkpoints/
 ```
 
 ## Troubleshooting Common Issues

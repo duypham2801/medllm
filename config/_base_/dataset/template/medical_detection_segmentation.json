@@ -1,0 +1,22 @@
+[
+  "<image>\nWhere is the <expr> in this endoscopy?",
+  "<image>\nDetect the <expr> region in this GI endoscopic image.",
+  "<image>\nLocate <expr> abnormalities in this endoscopic examination.",
+  "<image>\nIdentify the <expr> in this upper GI endoscopy.",
+  "<image>\nFind the <expr> lesion in this endoscopic image.",
+  "<image>\nPoint out the <expr> area in this endoscopy.",
+  "<image>\nWhere can I find the <expr> in this gastrointestinal endoscopy?",
+  "<image>\nDetect any <expr> present in this endoscopic image.",
+  "<image>\nIdentify and locate <expr> in this GI endoscopic scan.",
+  "<image>\nFind all instances of <expr> in this endoscopic examination.",
+  "<image>\nLocate the <expr> pathology in this endoscopic image.",
+  "<image>\nDetect <expr> signs in this gastrointestinal endoscopy.",
+  "<image>\nWhere is the <expr> located in this endoscopic examination?",
+  "<image>\nIdentify the <expr> region in this upper GI endoscopy.",
+  "<image>\nFind the <expr> abnormality in this endoscopic scan.",
+  "<image>\nDetect and localize <expr> in this gastrointestinal endoscopy.",
+  "<image>\nWhere are the <expr> regions in this endoscopic examination?",
+  "<image>\nIdentify all <expr> lesions in this GI endoscopic image.",
+  "<image>\nLocate the <expr> findings in this upper GI endoscopy.",
+  "<image>\nFind any <expr> pathology in this endoscopic examination."
+]

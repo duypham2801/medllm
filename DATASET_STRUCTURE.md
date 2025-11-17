@@ -10,6 +10,7 @@ This guide covers dataset structure for:
 1. **Object Detection** - Bounding boxes for lesions, tumors, organs
 2. **Instance Segmentation** - Pixel-level masks for regions of interest
 3. **Semantic Segmentation** - Full image segmentation
+4. **Detection + Segmentation** - Combined tasks with both boxes and masks
 
 Compatible with both **MedGemma** and **PerceptionGPT** models.
 
@@ -24,6 +25,97 @@ Compatible with both **MedGemma** and **PerceptionGPT** models.
 | **Detection** | COCO JSON | `.json` | Bounding boxes with class labels |
 | **Segmentation** | COCO + Masks | `.json` + `.png` | Polygons or RLE masks |
 | **Mixed** | Hybrid | `.jsonl` | Both boxes and masks per image |
+| **YOLO → MedGemma** | Conversion | `.jsonl` + `.png` | Convert from YOLO segmentation |
+
+---
+
+## YOLO Segmentation → MedGemma Conversion
+
+### Input Structure (YOLO Format)
+```
+dataset/
+├── 2_VTQ/                    # Viêm thực quản (Esophagitis)
+│   ├── train/
+│   │   ├── images/           # Original images
+│   │   │   ├── 10033.jpg
+│   │   │   └── ...
+│   │   ├── labels/           # YOLO format .txt files
+│   │   │   ├── 10033.txt     # Class_id x1 y1 x2 y2 ... xn yn
+│   │   │   └── ...
+│   │   └── masks/            # Optional existing masks
+│   │       └── ...
+│   ├── val/
+│   └── test/
+├── 3_VDDHPA/                 # Viêm dạ dày HP âm (Gastritis HP Negative)
+├── 4_VDDHPD/                 # Viêm dạ dày HP dương (Gastritis HP Positive)
+├── 5_UTTQ/                   # Ung thư thực quản (Esophageal Cancer)
+├── 6_UTDD/                   # Ung thư dạ dày (Stomach Cancer)
+└── 7_LHTT/                   # Loét hoành tá tràng (Esophageal Ulcer)
+```
+
+### YOLO Label Format
+```
+# 10033.txt
+0 0.577 0.529 0.620 0.611 0.752 0.629 ...  # Polygon points (normalized)
+```
+
+### Converted Output (MedGemma Format)
+```
+data_medgemma/
+├── medical_detection_segmentation_all.jsonl  # Master dataset
+├── 2_VTQ_train.jsonl                         # Per-category split
+├── 2_VTQ_val.jsonl
+├── 2_VTQ_test.jsonl
+└── masks/
+    ├── 2_VTQ/
+    │   ├── train/
+    │   │   ├── 10033_mask_0.png              # Generated masks
+    │   │   └── ...
+    │   └── val/
+    └── ...
+```
+
+### JSONL Format (Detection + Segmentation)
+```json
+{
+  "image": "2_VTQ/train/images/10033.jpg",
+  "conversations": [
+    {
+      "from": "human",
+      "value": "<image>\nDetect inflammation indicating Viem_thuc_quan in this endoscopy."
+    },
+    {
+      "from": "gpt",
+      "value": "The Viem_thuc_quan is located at <obj_vis_s>[0.577,0.529,0.620,0.611]<obj_vis_e>."
+    }
+  ],
+  "boxes": [[146.7, 118.1, 158.0, 139.6]],          // [x, y, width, height]
+  "formatted_boxes": ["[0.577,0.529,0.620,0.611]"], // Normalized [x1,y1,x2,y2]
+  "labels": ["Viem_thuc_quan"],
+  "masks": ["masks/2_VTQ/train/10033_mask_0.png"], // Mask files
+  "category": "Viem_thuc_quan",
+  "modality": "Endoscopy",
+  "dataset_split": "train",
+  "original_category": "2_VTQ"
+}
+```
+
+### Conversion Command
+```bash
+# Convert all categories
+python scripts/convert_yolo_to_medgemma.py \
+    --dataset_root dataset \
+    --output_root data_medgemma
+
+# Convert specific categories only
+python scripts/convert_yolo_to_medgemma.py \
+    --dataset_root dataset \
+    --output_root data_medgemma \
+    --categories 2_VTQ 3_VDDHPA
+
+# One-click setup
+bash scripts/setup_medgemma_detection_segmentation.sh 4gb  # or 16gb
+```
 
 ---
 
