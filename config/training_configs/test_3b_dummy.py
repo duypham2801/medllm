@@ -61,7 +61,7 @@ training_args = dict(
 
     # Checkpointing - disabled for quick test
     save_strategy='no',
-    evaluation_strategy='no',  # Use 'evaluation_strategy' for older transformers versions
+    eval_strategy='no',        # transformers >= 4.57 uses 'eval_strategy'
     logging_steps=1,
     logging_first_step=True,
 
