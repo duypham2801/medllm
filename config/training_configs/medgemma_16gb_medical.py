@@ -22,13 +22,13 @@ _base_ = ['../_base_/dataset/DEFAULT_TRAIN_DATASET.py']
 # Use local models if downloaded, otherwise download from HuggingFace
 import os
 
-# Get absolute path to ckpt folder
-_config_dir = os.path.dirname(os.path.abspath(__file__))
-_project_root = os.path.dirname(os.path.dirname(os.path.dirname(_config_dir)))
+# Get project root - mmengine runs from project root, so just use cwd
+_project_root = os.getcwd()
 _local_base = os.path.join(_project_root, "ckpt/medgemma-4b-it")
 _local_adapter = os.path.join(_project_root, "ckpt/flare25-medgemma")
 
 # Debug: Print what we're checking
+print(f"[DEBUG] Project root: {_project_root}")
 print(f"[DEBUG] Checking for local model at: {_local_base}")
 print(f"[DEBUG] Exists: {os.path.exists(_local_base)}")
 print(f"[DEBUG] Checking for adapters at: {_local_adapter}")
