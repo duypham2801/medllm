@@ -199,29 +199,59 @@ class MedGemmaTrainer:
             mlm=False,
         )
 
-        # Training arguments
-        training_args = TrainingArguments(
-            output_dir='./exp/medgemma_direct',
-            num_train_epochs=3,
-            per_device_train_batch_size=1,
-            per_device_eval_batch_size=2,
-            gradient_accumulation_steps=8,
-            learning_rate=1e-5,
-            weight_decay=0.01,
-            warmup_ratio=0.05,
-            logging_steps=10,
-            save_steps=500,
-            eval_steps=500,
-            evaluation_strategy='steps',
-            save_strategy='steps',
-            load_best_model_at_end=True,
-            metric_for_best_model='eval_loss',
-            greater_is_better=False,
-            fp16=True,
-            dataloader_num_workers=4,
-            report_to='tensorboard',
-            run_name='medgemma_direct_training'
-        )
+        # Training arguments with version compatibility
+        try:
+            # Try with eval_strategy (newer transformers versions)
+            training_args = TrainingArguments(
+                output_dir='./exp/medgemma_direct',
+                num_train_epochs=3,
+                per_device_train_batch_size=1,
+                per_device_eval_batch_size=2,
+                gradient_accumulation_steps=8,
+                learning_rate=1e-5,
+                weight_decay=0.01,
+                warmup_ratio=0.05,
+                logging_steps=10,
+                save_steps=500,
+                eval_steps=500,
+                eval_strategy='steps',  # Newer versions
+                save_strategy='steps',
+                load_best_model_at_end=True,
+                metric_for_best_model='eval_loss',
+                greater_is_better=False,
+                fp16=True,
+                dataloader_num_workers=4,
+                report_to='tensorboard',
+                run_name='medgemma_direct_training'
+            )
+        except TypeError as e:
+            if 'eval_strategy' in str(e):
+                print("⚠️  Using older transformers version, switching to evaluation_strategy")
+                # Fallback to evaluation_strategy (older transformers versions)
+                training_args = TrainingArguments(
+                    output_dir='./exp/medgemma_direct',
+                    num_train_epochs=3,
+                    per_device_train_batch_size=1,
+                    per_device_eval_batch_size=2,
+                    gradient_accumulation_steps=8,
+                    learning_rate=1e-5,
+                    weight_decay=0.01,
+                    warmup_ratio=0.05,
+                    logging_steps=10,
+                    save_steps=500,
+                    eval_steps=500,
+                    evaluation_strategy='steps',  # Older versions
+                    save_strategy='steps',
+                    load_best_model_at_end=True,
+                    metric_for_best_model='eval_loss',
+                    greater_is_better=False,
+                    fp16=True,
+                    dataloader_num_workers=4,
+                    report_to='tensorboard',
+                    run_name='medgemma_direct_training'
+                )
+            else:
+                raise e
 
         # Create trainer
         trainer = Trainer(
