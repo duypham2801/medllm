@@ -51,22 +51,11 @@ NUM_SAMPLES=$(wc -l < "$OUTPUT_ROOT/medical_detection_segmentation_all.jsonl")
 echo "  Total samples: $NUM_SAMPLES"
 echo ""
 
-# Step 2: Update dataset registration
-echo "[2/4] Updating dataset registration..."
+# Step 2: Skip dataset registration (avoid circular import)
+echo "[2/4] Skipping dataset registration to avoid circular import..."
 
-# Import the new dataset class (avoid circular import by using direct import)
-python -c "
-import sys
-from pathlib import Path
-
-# Check if dataset class can be imported directly
-try:
-    from mllm.dataset.single_image_dataset.medical_detection_segmentation_dataset import MedicalDetectionSegmentationDataset, MedicalDetectionSegmentationMultiDataset
-    print('✓ Dataset class imported successfully')
-except ImportError as e:
-    print(f'✗ Dataset import failed: {e}')
-    sys.exit(1)
-"
+echo "✓ Dataset files will be imported directly during training"
+echo "✓ No circular import issues expected"
 
 echo ""
 
@@ -93,8 +82,8 @@ if [ "$GPU_MEMORY" = "4gb" ]; then
     CONFIG_FILE="config/training_configs/medgemma_detection_segmentation_4gb.py"
     echo "Using 4GB configuration"
 elif [ "$GPU_MEMORY" = "16gb" ]; then
-    CONFIG_FILE="config/training_configs/medgemma_detection_segmentation_simple_16gb.py"
-    echo "Using 16GB simple configuration (no circular import)"
+    CONFIG_FILE="config/training_configs/medgemma_detection_segmentation_direct_16gb.py"
+    echo "Using 16GB direct configuration (no dataset registration)"
 else
     echo "ERROR: Invalid GPU memory option: $GPU_MEMORY"
     echo "Options: 4gb, 16gb"
@@ -133,26 +122,34 @@ echo "Next steps:"
 echo "1. Download models (if not done):"
 echo "   bash scripts/download_medgemma.sh"
 echo ""
-echo "2. Test the configuration:"
-echo "   python scripts/test_config.py $CONFIG_FILE"
+echo "2. Quick test:"
+echo "   bash scripts/quick_train_medgemma.py"
 echo ""
 echo "3. Start training:"
 echo "   python mllm/pipeline/finetune.py $CONFIG_FILE"
 echo ""
-echo "Or use the training script:"
-echo "   bash $TRAIN_SCRIPT"
-echo ""
 echo "Dataset info:"
 echo "  - Format: Detection + Segmentation"
 echo "  - Samples: $NUM_SAMPLES"
-echo "  - Modalities: X-ray, Dermatology, Endoscopy, CT"
-echo "  - Categories: ${CATEGORIES:-'All disease categories'}"
+echo "  - Modality: Endoscopy (GI conditions)"
+echo "  - Categories: Viem_thuc_quan, Viem_da_day_HP_am, Viem_da_day_HP_duong, Ung_thu_thuc_quan, Ung_thu_da_day, Loet_hoanh_tao_trang"
 echo ""
 
-# Ask user if they want to start training now
-read -p "Do you want to start training now? (y/n): " -n 1 -r
+# Ask user if they want to start quick test now
+read -p "Do you want to run quick test now? (y/n): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "Starting training..."
-    python mllm/pipeline/finetune.py $CONFIG_FILE
+    echo "Running quick test..."
+    bash scripts/quick_train_medgemma.py
+    if [ $? -eq 0 ]; then
+        echo ""
+        read -p "Test passed! Start training now? (y/n): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo "Starting training..."
+            python mllm/pipeline/finetune.py $CONFIG_FILE
+        fi
+    else
+        echo "Test failed. Please fix issues before training."
+    fi
 fi

@@ -23,4 +23,4 @@ from .reg_mask import GCMaskDataset
 # Medical imaging datasets
 from .medical_detection_dataset import MedicalDetectionDataset, MedicalDetectionJSONLDataset
 from .medical_segmentation_dataset import MedicalSegmentationDataset, MedicalSegmentationJSONLDataset
-from .medical_detection_segmentation_dataset import MedicalDetectionSegmentationDataset, MedicalDetectionSegmentationMultiDataset
+# Note: medical_detection_segmentation_dataset imported separately to avoid circular import
