@@ -93,46 +93,26 @@ class DirectMedicalDataset(Dataset):
             elif conv['from'] == 'gpt':
                 assistant_msg = conv['value']
 
-        # Format as chat template
-        formatted_text = f"{human_msg}\n{assistant_msg}"
-
-        # Add EOS token
-        if hasattr(self.tokenizer, 'eos_token') and self.tokenizer.eos_token:
-            formatted_text += self.tokenizer.eos_token
-
-        # Tokenize with proper padding
-        inputs = self.tokenizer(
-            formatted_text,
-            max_length=self.max_length,
-            truncation=True,
-            padding='max_length',
-            return_tensors='pt'
-        )
-
-        # Create proper labels (shifted for causal LM)
-        input_ids = inputs['input_ids'].squeeze()
-        labels = input_ids.clone()
-
         # Create proper labels - only train on assistant response
         # Tokenize human and assistant parts separately
         human_tokens = self.tokenizer(human_msg, add_special_tokens=False)['input_ids']
         assistant_tokens = self.tokenizer(assistant_msg, add_special_tokens=False)['input_ids']
 
-        # Validate vocabulary size and token bounds
-        vocab_size = self.tokenizer.vocab_size
+        # Use actual vocabulary size for validation
+        actual_vocab_size = len(self.tokenizer.get_vocab())
 
         # Ensure tokens are within vocabulary bounds
-        human_tokens = [t if t < vocab_size else self.tokenizer.unk_token_id for t in human_tokens]
-        assistant_tokens = [t if t < vocab_size else self.tokenizer.unk_token_id for t in assistant_tokens]
+        human_tokens = [t if t < actual_vocab_size else self.tokenizer.unk_token_id for t in human_tokens]
+        assistant_tokens = [t if t < actual_vocab_size else self.tokenizer.unk_token_id for t in assistant_tokens]
 
         # Combine with special tokens
         full_tokens = human_tokens + assistant_tokens
         if hasattr(self.tokenizer, 'eos_token') and self.tokenizer.eos_token:
             eos_id = self.tokenizer.eos_token_id
-            if eos_id and eos_id < vocab_size:
+            if eos_id and eos_id < actual_vocab_size:
                 full_tokens.append(eos_id)
 
-        # Create attention mask and labels
+        # Create attention mask and input_ids
         input_ids = torch.tensor(full_tokens[:self.max_length], dtype=torch.long)
 
         # Create labels - mask human part with -100
@@ -184,21 +164,38 @@ class MedGemmaTrainer:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        # For Gemma models, we cannot easily resize embeddings
-        # So we'll skip adding special tokens and use existing vocabulary
+        # Check and add coordinate tokens for Gemma models
         coordinate_tokens = ['<obj_vis_s>', '<obj_vis_e>']
 
+        # Check what tokens exist
         existing_tokens = []
+        tokens_to_add = []
+
         for token in coordinate_tokens:
             if token in self.tokenizer.get_vocab():
                 existing_tokens.append(f"'{token}' (ID: {self.tokenizer.get_vocab()[token]})")
             else:
-                print(f"⚠️  Token '{token}' not in Gemma vocabulary")
+                tokens_to_add.append(token)
+                print(f"⚠️  Token '{token}' not in Gemma vocabulary - will add")
 
         if existing_tokens:
             print(f"Using existing coordinate tokens: {existing_tokens}")
+
+        # Add missing tokens
+        if tokens_to_add:
+            print(f"Adding special tokens: {tokens_to_add}")
+            self.tokenizer.add_special_tokens({'additional_special_tokens': tokens_to_add})
+            print(f"Added tokens successfully")
+
+            # Verify tokens were added
+            for token in tokens_to_add:
+                if token in self.tokenizer.get_vocab():
+                    token_id = self.tokenizer.get_vocab()[token]
+                    print(f"✅ Token '{token}' added with ID: {token_id}")
+                else:
+                    print(f"❌ Failed to add token '{token}'")
         else:
-            print("⚠️  No coordinate tokens found in vocabulary, using text format")
+            print("✅ All coordinate tokens already exist in vocabulary")
 
         # Load model (Gemma models don't support vocab_size parameter)
         self.model = AutoModelForCausalLM.from_pretrained(
@@ -302,10 +299,11 @@ class MedGemmaTrainer:
         # Verify model and tokenizer compatibility first
         model_vocab_size = self.model.get_input_embeddings().weight.size(0)
         tokenizer_vocab_size = self.tokenizer.vocab_size
+        actual_tokenizer_vocab = len(self.tokenizer.get_vocab())
 
-        print(f"Final verification - Model vocab: {model_vocab_size}, Tokenizer vocab: {tokenizer_vocab_size}")
+        print(f"Final verification - Model vocab: {model_vocab_size}, Tokenizer.vocab_size: {tokenizer_vocab_size}, Actual vocab: {actual_tokenizer_vocab}")
 
-        if model_vocab_size != tokenizer_vocab_size:
+        if model_vocab_size != actual_tokenizer_vocab:
             print("⚠️  Vocabulary size mismatch detected!")
             print("   This may cause index out of bounds errors.")
             print("   Continuing with caution...")
