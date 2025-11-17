@@ -78,15 +78,31 @@ class MedGemmaPerception(GemmaForCausalLM):
 
         # Handle text_config (can be dict or already a Config object)
         if hasattr(config, 'text_config') and config.text_config is not None:
+            print(f"[DEBUG] text_config type: {type(config.text_config)}")
+            print(f"[DEBUG] text_config class: {config.text_config.__class__.__name__}")
+
             # If it's a dict, convert to GemmaConfig
             if isinstance(config.text_config, dict):
                 from transformers import GemmaConfig
                 text_config_dict = config.text_config
                 config.text_config = GemmaConfig(**text_config_dict)
+                print("[DEBUG] Converted text_config from dict to GemmaConfig")
+
+            # Debug: Check what attributes text_config has
+            text_config_attrs = [a for a in dir(config.text_config) if not a.startswith('_')]
+            print(f"[DEBUG] text_config has {len(text_config_attrs)} non-private attributes")
+            print(f"[DEBUG] Has hidden_act: {hasattr(config.text_config, 'hidden_act')}")
+            print(f"[DEBUG] Has hidden_activation: {hasattr(config.text_config, 'hidden_activation')}")
+
+            if hasattr(config.text_config, 'hidden_act'):
+                print(f"[DEBUG] text_config.hidden_act = {config.text_config.hidden_act}")
+            if hasattr(config.text_config, 'hidden_activation'):
+                print(f"[DEBUG] text_config.hidden_activation = {config.text_config.hidden_activation}")
 
             # Copy ALL attributes from text_config to main config
             # GemmaModel expects these at top level, not in text_config
             # We copy everything to ensure compatibility with all Gemma variants
+            attrs_copied = 0
             for attr_name in dir(config.text_config):
                 # Skip private/magic methods and methods
                 if attr_name.startswith('_') or callable(getattr(config.text_config, attr_name)):
@@ -97,8 +113,17 @@ class MedGemmaPerception(GemmaForCausalLM):
                 # Copy attribute
                 try:
                     setattr(config, attr_name, getattr(config.text_config, attr_name))
-                except Exception:
-                    pass  # Skip attributes that can't be set
+                    attrs_copied += 1
+                except Exception as e:
+                    print(f"[DEBUG] Failed to copy {attr_name}: {e}")
+
+            print(f"[DEBUG] Copied {attrs_copied} attributes from text_config to main config")
+            print(f"[DEBUG] Main config now has hidden_act: {hasattr(config, 'hidden_act')}")
+
+            # Alias mapping if needed
+            if hasattr(config.text_config, 'hidden_activation') and not hasattr(config, 'hidden_act'):
+                config.hidden_act = config.text_config.hidden_activation
+                print(f"[DEBUG] Mapped hidden_activation -> hidden_act: {config.hidden_act}")
 
         super(MedGemmaPerception, self).__init__(config)
         self.config = config
@@ -263,16 +288,25 @@ class MedGemmaPerception(GemmaForCausalLM):
 
         # Handle text_config (can be dict or already a Config object)
         if hasattr(config, 'text_config') and config.text_config is not None:
+            print(f"[DEBUG from_pretrained] text_config type: {type(config.text_config)}")
+            print(f"[DEBUG from_pretrained] text_config class: {config.text_config.__class__.__name__}")
+
             # If it's a dict, convert to GemmaConfig
             if isinstance(config.text_config, dict):
                 text_config_dict = config.text_config
                 # Use GemmaConfig for text_config
                 from transformers import GemmaConfig
                 config.text_config = GemmaConfig(**text_config_dict)
+                print("[DEBUG from_pretrained] Converted text_config from dict to GemmaConfig")
+
+            # Debug: Check what attributes text_config has
+            print(f"[DEBUG from_pretrained] Has hidden_act: {hasattr(config.text_config, 'hidden_act')}")
+            print(f"[DEBUG from_pretrained] Has hidden_activation: {hasattr(config.text_config, 'hidden_activation')}")
 
             # Copy ALL attributes from text_config to main config
             # GemmaModel expects these at top level, not in text_config
             # We copy everything to ensure compatibility with all Gemma variants
+            attrs_copied = 0
             for attr_name in dir(config.text_config):
                 # Skip private/magic methods and methods
                 if attr_name.startswith('_') or callable(getattr(config.text_config, attr_name)):
@@ -283,8 +317,17 @@ class MedGemmaPerception(GemmaForCausalLM):
                 # Copy attribute
                 try:
                     setattr(config, attr_name, getattr(config.text_config, attr_name))
-                except Exception:
-                    pass  # Skip attributes that can't be set
+                    attrs_copied += 1
+                except Exception as e:
+                    print(f"[DEBUG from_pretrained] Failed to copy {attr_name}: {e}")
+
+            print(f"[DEBUG from_pretrained] Copied {attrs_copied} attributes from text_config to main config")
+            print(f"[DEBUG from_pretrained] Main config now has hidden_act: {hasattr(config, 'hidden_act')}")
+
+            # Alias mapping if needed
+            if hasattr(config.text_config, 'hidden_activation') and not hasattr(config, 'hidden_act'):
+                config.hidden_act = config.text_config.hidden_activation
+                print(f"[DEBUG from_pretrained] Mapped hidden_activation -> hidden_act: {config.hidden_act}")
 
         # Pass cleaned config
         kwargs['config'] = config
