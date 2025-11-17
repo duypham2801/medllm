@@ -71,8 +71,12 @@ class MedGemmaPerception(GemmaForCausalLM):
         # This prevents AttributeError: 'dict' object has no attribute 'to_dict'
         # when GenerationConfig.from_model_config() is called
         if hasattr(config, 'decoder_config') and isinstance(config.decoder_config, dict):
-            # Remove decoder_config if it's a dict (will be auto-created properly)
-            delattr(config, 'decoder_config')
+            # Set to None instead of deleting - transformers will handle it properly
+            config.decoder_config = None
+
+        # Also check text_config (some Gemma configs use this)
+        if hasattr(config, 'text_config') and isinstance(config.text_config, dict):
+            config.text_config = None
 
         super(MedGemmaPerception, self).__init__(config)
         self.config = config
@@ -209,7 +213,7 @@ class MedGemmaPerception(GemmaForCausalLM):
         return outputs
 
     @classmethod
-    def from_pretrained(cls, *args, **kwargs):
+    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
         """
         Load pretrained MedGemma model.
 
@@ -217,7 +221,27 @@ class MedGemmaPerception(GemmaForCausalLM):
         1. Base google/medgemma-4b-it model
         2. LoRA adapters from leoyinn/flare25-medgemma (handled by builder)
         """
-        return super().from_pretrained(*args, **kwargs)
+        # Fix for transformers >= 4.57: Clean config before loading
+        # Load config first to clean it
+        from transformers import AutoConfig
+
+        config = kwargs.get('config', None)
+        if config is None:
+            config = AutoConfig.from_pretrained(
+                pretrained_model_name_or_path,
+                trust_remote_code=kwargs.get('trust_remote_code', True)
+            )
+
+        # Clean decoder_config and text_config if they are dicts
+        if hasattr(config, 'decoder_config') and isinstance(config.decoder_config, dict):
+            config.decoder_config = None
+        if hasattr(config, 'text_config') and isinstance(config.text_config, dict):
+            config.text_config = None
+
+        # Pass cleaned config
+        kwargs['config'] = config
+
+        return super().from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
 
     def prepare_inputs_for_generation(
         self,
