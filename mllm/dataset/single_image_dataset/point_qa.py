@@ -1,6 +1,6 @@
 import re
 
-from .. import BaseComputeMetrics
+from ..utils.compute_metrics import BaseComputeMetrics
 from ..root import (
     DATASETS,
     METRICS,
