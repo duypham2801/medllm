@@ -96,11 +96,12 @@ class DirectMedicalDataset(Dataset):
         }
 
 class MedGemmaTrainer:
-    def __init__(self, model_path, adapter_path, data_file, image_root):
+    def __init__(self, model_path, adapter_path, data_file, image_root, use_existing_adapters=True):
         self.model_path = model_path
         self.adapter_path = adapter_path
         self.data_file = data_file
         self.image_root = image_root
+        self.use_existing_adapters = use_existing_adapters
 
     def load_model(self):
         """Load MedGemma model with adapters"""
@@ -122,22 +123,41 @@ class MedGemmaTrainer:
             device_map='auto'
         )
 
-        # Load LoRA adapters
-        if self.adapter_path and Path(self.adapter_path).exists():
-            print(f"Loading adapters from {self.adapter_path}")
-            from peft import PeftModel
-            self.model = PeftModel.from_pretrained(self.model, self.adapter_path)
+        # Handle LoRA adapters - either load existing or create new
+        if (self.use_existing_adapters and self.adapter_path and
+            Path(self.adapter_path).exists()):
+            print(f"Attempting to load existing adapters from {self.adapter_path}")
+            try:
+                # Try to load adapters first
+                from peft import PeftModel
+                self.model = PeftModel.from_pretrained(self.model, self.adapter_path)
+                print("✅ Existing adapters loaded successfully")
 
-        # Setup LoRA for training
+                # If we loaded existing adapters, we don't need to add new LoRA layers
+                return self.model
+
+            except Exception as e:
+                print(f"⚠️  Failed to load existing adapters: {e}")
+                print("Creating new LoRA adapters instead...")
+        elif self.use_existing_adapters:
+            print("⚠️  Existing adapters requested but not found, creating new adapters...")
+
+        # Setup LoRA for training (new adapters)
+        print("Creating new LoRA adapters for training...")
         lora_config = LoraConfig(
             task_type=TaskType.CAUSAL_LM,
             r=16,
             lora_alpha=32,
             lora_dropout=0.1,
-            target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj']
+            target_modules=[
+                'q_proj', 'k_proj', 'v_proj', 'o_proj',
+                'gate_proj', 'up_proj', 'down_proj',
+                'lm_head'
+            ]
         )
 
         self.model = get_peft_model(self.model, lora_config)
+        print("✅ New LoRA adapters created")
         self.model.print_trainable_parameters()
 
         return self.model
@@ -233,6 +253,20 @@ def main():
     data_file = 'data_medgemma/medical_detection_segmentation_all.jsonl'
     image_root = 'dataset'
 
+    # Parse command line arguments
+    import argparse
+    parser = argparse.ArgumentParser(description='Direct MedGemma Training')
+    parser.add_argument('--no-adapters', action='store_true',
+                       help='Skip existing adapters and create new ones')
+    args = parser.parse_args()
+
+    use_existing_adapters = not args.no_adapters
+
+    print(f"Model: {model_path}")
+    print(f"Adapters: {adapter_path}")
+    print(f"Use existing adapters: {use_existing_adapters}")
+    print(f"Data: {data_file} ({len(list(Path(data_file).open())) if Path(data_file).exists() else 'Not found'} samples)")
+
     # Check files exist
     if not Path(model_path).exists():
         print(f"❌ Model not found: {model_path}")
@@ -243,7 +277,7 @@ def main():
         return 1
 
     # Create trainer
-    trainer = MedGemmaTrainer(model_path, adapter_path, data_file, image_root)
+    trainer = MedGemmaTrainer(model_path, adapter_path, data_file, image_root, use_existing_adapters)
 
     # Start training
     try:
