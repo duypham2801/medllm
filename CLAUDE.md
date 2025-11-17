@@ -197,6 +197,11 @@ Key dataset types:
 8. **Vision tower initialization**: Check attribute exists before accessing via `hasattr(model, 'vision_tower')`
 9. **4GB GPU limitations**: Even with optimizations (8-bit, LoRA, gradient checkpointing), may still OOM. Consider cloud GPU or CPU training
 10. **MedGemma vs PerceptionGPT**: Use `type='medgemma'` for medical tasks, `type='shikra'` or `type='perceptionGPT'` for general visual grounding
+11. **GPU Architecture Compatibility**:
+    - **T4/Turing GPUs** (compute 7.5): Use `fp16=True, bf16=False, tf32=False` - Config: `medgemma_16gb_medical.py`
+    - **RTX 3090/A100 (Ampere+)** (compute 8.0+): Can use `bf16=True, tf32=True` - Config: `medgemma_16gb_ampere.py`
+    - **Error**: `ValueError: Your setup doesn't support bf16/gpu` means you're using BF16 on non-Ampere GPU
+12. **Transformers Version for MedGemma**: Requires `transformers>=4.50.0` (Gemma 3 support). Older versions (4.46.3) will fail with tokenizer loading error: `Exception: data did not match any variant of untagged enum ModelWrapper`
 
 ## Medical Imaging Features
 

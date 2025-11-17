@@ -6,11 +6,12 @@ torch>=2.0.0,<2.3.0
 torchvision>=0.15.0,<0.18.0
 torchaudio>=2.0.0,<2.3.0
 
-# Transformers and HuggingFace - FIXED VERSIONS
-transformers==4.46.3  # Compatible with torch 2.2.2 and peft 0.13.2
+# Transformers and HuggingFace - UPDATED FOR MEDGEMMA SUPPORT
+transformers>=4.50.0  # Required for Gemma 3 / MedGemma support (was 4.46.3)
+tokenizers>=0.20.0    # Auto-updated with transformers, required for Gemma 3 tokenizer
 datasets>=2.14.0
 accelerate>=0.24.0
-peft==0.13.2  # Compatible with transformers 4.46.3
+peft>=0.13.2          # Compatible with transformers 4.50.0+ and torch 2.0-2.3
 
 # DeepSpeed for distributed training
 deepspeed>=0.12.0

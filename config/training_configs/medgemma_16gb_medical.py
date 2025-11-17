@@ -9,6 +9,12 @@ Optimized for actual medical imaging fine-tuning with good performance.
 - Longer sequences (2048 tokens)
 
 Ready for production medical imaging datasets.
+
+IMPORTANT: T4 GPU Compatibility
+- Architecture: Turing (compute capability 7.5)
+- Supported: FP16 ✅, FP32 ✅
+- NOT supported: BF16 ❌, TF32 ❌ (Ampere+ only)
+- For Ampere GPUs (RTX 3090, A100): use medgemma_16gb_ampere.py
 """
 
 _base_ = ['../_base_/dataset/DEFAULT_TRAIN_DATASET.py']
@@ -81,9 +87,9 @@ training_args = dict(
 
     # Memory optimization
     gradient_checkpointing=True,
-    bf16=True,                       # T4 supports bfloat16 (better than fp16)
-    fp16=False,
-    tf32=True,                       # T4 supports TF32 (Ampere)
+    bf16=False,                      # T4 (Turing) does NOT support BF16 (Ampere+ only)
+    fp16=True,                       # Use FP16 instead (supported on Turing)
+    tf32=False,                      # T4 does NOT have TF32 cores (Ampere+ only)
 
     # Logging
     logging_steps=10,
