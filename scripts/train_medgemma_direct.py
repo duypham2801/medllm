@@ -51,9 +51,22 @@ class DirectMedicalDataset(Dataset):
 
         print(f"Loaded {len(self.data)} samples")
 
-        # Add special tokens for coordinates if needed
-        special_tokens = ['<obj_vis_s>', '<obj_vis_e>', '[', ']']
-        self.tokenizer.add_special_tokens({'additional_special_tokens': special_tokens})
+        # Check if coordinate tokens already exist, add if needed
+        coordinate_tokens = ['<obj_vis_s>', '<obj_vis_e>']
+
+        # Check if tokens already exist in vocabulary
+        tokens_to_add = []
+        for token in coordinate_tokens:
+            if token not in self.tokenizer.get_vocab():
+                tokens_to_add.append(token)
+            else:
+                print(f"Token '{token}' already exists in vocabulary")
+
+        if tokens_to_add:
+            print(f"Adding special tokens: {tokens_to_add}")
+            self.tokenizer.add_special_tokens({'additional_special_tokens': tokens_to_add})
+        else:
+            print("All coordinate tokens already exist in vocabulary")
 
     def __len__(self):
         return len(self.data)
@@ -103,10 +116,19 @@ class DirectMedicalDataset(Dataset):
         human_tokens = self.tokenizer(human_msg, add_special_tokens=False)['input_ids']
         assistant_tokens = self.tokenizer(assistant_msg, add_special_tokens=False)['input_ids']
 
+        # Validate vocabulary size and token bounds
+        vocab_size = self.tokenizer.vocab_size
+
+        # Ensure tokens are within vocabulary bounds
+        human_tokens = [t if t < vocab_size else self.tokenizer.unk_token_id for t in human_tokens]
+        assistant_tokens = [t if t < vocab_size else self.tokenizer.unk_token_id for t in assistant_tokens]
+
         # Combine with special tokens
         full_tokens = human_tokens + assistant_tokens
         if hasattr(self.tokenizer, 'eos_token') and self.tokenizer.eos_token:
-            full_tokens.append(self.tokenizer.eos_token_id or 1)
+            eos_id = self.tokenizer.eos_token_id
+            if eos_id and eos_id < vocab_size:
+                full_tokens.append(eos_id)
 
         # Create attention mask and labels
         input_ids = torch.tensor(full_tokens[:self.max_length], dtype=torch.long)
@@ -216,13 +238,21 @@ class MedGemmaTrainer:
             max_length=512
         )
 
-        # Resize model embeddings for new tokens
+        # Resize model embeddings for new tokens (safer approach)
         if hasattr(self.model, 'resize_token_embeddings'):
             old_size = self.model.get_input_embeddings().weight.size(0)
             new_size = self.tokenizer.vocab_size
-            if new_size != old_size:
+            if new_size > old_size:
                 print(f"Resizing embeddings from {old_size} to {new_size}")
                 self.model.resize_token_embeddings(new_size)
+                print("✅ Embeddings resized successfully")
+            elif new_size < old_size:
+                print(f"⚠️  New vocab size ({new_size}) is smaller than old ({old_size})")
+                print("   This might indicate tokenizer issues. Proceeding with caution.")
+            else:
+                print(f"✅ Embeddings size matches ({new_size})")
+        else:
+            print("⚠️  Model does not support embedding resizing")
 
         # Split into train/validation
         total_size = len(train_dataset)
