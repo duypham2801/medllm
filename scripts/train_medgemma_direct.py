@@ -27,7 +27,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 class DirectMedicalDataset(Dataset):
-    """Direct dataset that works without any PerceptionGPT dependencies"""
+    """Direct dataset with proper conversation formatting"""
 
     def __init__(self, jsonl_file, image_root, tokenizer, image_size=448, max_length=512):
         self.jsonl_file = Path(jsonl_file)
@@ -51,45 +51,88 @@ class DirectMedicalDataset(Dataset):
 
         print(f"Loaded {len(self.data)} samples")
 
+        # Add special tokens for coordinates if needed
+        special_tokens = ['<obj_vis_s>', '<obj_vis_e>', '[', ']']
+        self.tokenizer.add_special_tokens({'additional_special_tokens': special_tokens})
+
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         sample = self.data[idx]
 
-        # Load and process image
+        # Load image (we don't actually need image processing for text-only training)
         image_path = self.image_root / sample['image']
-        try:
-            image = Image.open(image_path).convert('RGB')
-            image = image.resize((self.image_size, self.image_size), Image.BICUBIC)
-            # For now, we'll just store the image path since we need proper vision processing
-            image_info = str(sample['image'])
-        except Exception as e:
-            print(f"Error loading image {image_path}: {e}")
-            image_info = "error_loading_image"
+        image_info = str(sample['image'])
 
-        # Process conversations into text
+        # Format conversations properly for training
         conversations = sample['conversations']
-        text = ""
+
+        # Extract messages properly
+        human_msg = ""
+        assistant_msg = ""
+
         for conv in conversations:
             if conv['from'] == 'human':
-                text += f"Human: {conv['value']}\n"
-            else:
-                text += f"Assistant: {conv['value']}\n"
+                human_msg = conv['value']
+            elif conv['from'] == 'gpt':
+                assistant_msg = conv['value']
 
-        # Tokenize text
+        # Format as chat template
+        formatted_text = f"{human_msg}\n{assistant_msg}"
+
+        # Add EOS token
+        if hasattr(self.tokenizer, 'eos_token') and self.tokenizer.eos_token:
+            formatted_text += self.tokenizer.eos_token
+
+        # Tokenize with proper padding
         inputs = self.tokenizer(
-            text,
+            formatted_text,
             max_length=self.max_length,
             truncation=True,
             padding='max_length',
             return_tensors='pt'
         )
 
+        # Create proper labels (shifted for causal LM)
+        input_ids = inputs['input_ids'].squeeze()
+        labels = input_ids.clone()
+
+        # Create proper labels - only train on assistant response
+        # Tokenize human and assistant parts separately
+        human_tokens = self.tokenizer(human_msg, add_special_tokens=False)['input_ids']
+        assistant_tokens = self.tokenizer(assistant_msg, add_special_tokens=False)['input_ids']
+
+        # Combine with special tokens
+        full_tokens = human_tokens + assistant_tokens
+        if hasattr(self.tokenizer, 'eos_token') and self.tokenizer.eos_token:
+            full_tokens.append(self.tokenizer.eos_token_id or 1)
+
+        # Create attention mask and labels
+        input_ids = torch.tensor(full_tokens[:self.max_length], dtype=torch.long)
+
+        # Create labels - mask human part with -100
+        labels = input_ids.clone()
+        labels[:len(human_tokens)] = -100  # Only train on assistant response
+
+        # Pad to max_length
+        if len(input_ids) < self.max_length:
+            pad_length = self.max_length - len(input_ids)
+            input_ids = torch.cat([input_ids, torch.full((pad_length,), self.tokenizer.pad_token_id, dtype=torch.long)])
+            labels = torch.cat([labels, torch.full((pad_length,), -100, dtype=torch.long)])
+            attention_mask = torch.cat([torch.ones(len(input_ids) - pad_length, dtype=torch.long), torch.zeros(pad_length, dtype=torch.long)])
+        else:
+            attention_mask = torch.ones_like(input_ids)
+
+        # Ensure we don't exceed max_length
+        input_ids = input_ids[:self.max_length]
+        labels = labels[:self.max_length]
+        attention_mask = attention_mask[:self.max_length]
+
         return {
-            'input_ids': inputs['input_ids'].squeeze(),
-            'attention_mask': inputs['attention_mask'].squeeze(),
-            'labels': inputs['input_ids'].squeeze().clone(),
+            'input_ids': input_ids,
+            'attention_mask': attention_mask,
+            'labels': labels,
             'image_path': image_info,
             'category': sample.get('category', 'Unknown'),
             'modality': sample.get('modality', 'Unknown')
@@ -164,6 +207,7 @@ class MedGemmaTrainer:
 
     def prepare_data(self):
         """Prepare dataset"""
+        # Create dataset first
         train_dataset = DirectMedicalDataset(
             self.data_file,
             self.image_root,
@@ -171,6 +215,14 @@ class MedGemmaTrainer:
             image_size=448,
             max_length=512
         )
+
+        # Resize model embeddings for new tokens
+        if hasattr(self.model, 'resize_token_embeddings'):
+            old_size = self.model.get_input_embeddings().weight.size(0)
+            new_size = self.tokenizer.vocab_size
+            if new_size != old_size:
+                print(f"Resizing embeddings from {old_size} to {new_size}")
+                self.model.resize_token_embeddings(new_size)
 
         # Split into train/validation
         total_size = len(train_dataset)
@@ -187,17 +239,22 @@ class MedGemmaTrainer:
         """Start training"""
         print("Starting training...")
 
-        # Load model
+        # Load model first
         model = self.load_model()
 
-        # Prepare data
+        # Then prepare data (to ensure tokenizer has been set up)
         train_dataset, val_dataset = self.prepare_data()
 
-        # Data collator
-        data_collator = DataCollatorForLanguageModeling(
-            tokenizer=self.tokenizer,
-            mlm=False,
-        )
+        # Custom data collator that handles our format
+        def custom_data_collator(features):
+            batch = {}
+
+            # Stack tensors
+            batch['input_ids'] = torch.stack([f['input_ids'] for f in features])
+            batch['attention_mask'] = torch.stack([f['attention_mask'] for f in features])
+            batch['labels'] = torch.stack([f['labels'] for f in features])
+
+            return batch
 
         # Training arguments with version compatibility
         try:
@@ -259,8 +316,8 @@ class MedGemmaTrainer:
             args=training_args,
             train_dataset=train_dataset,
             eval_dataset=val_dataset,
-            data_collator=data_collator,
-            tokenizer=self.tokenizer,
+            data_collator=custom_data_collator,
+            processing_class=self.tokenizer,
         )
 
         # Start training
