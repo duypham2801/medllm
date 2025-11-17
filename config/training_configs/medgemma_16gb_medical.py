@@ -21,11 +21,24 @@ _base_ = ['../_base_/dataset/DEFAULT_TRAIN_DATASET.py']
 
 # Use local models if downloaded, otherwise download from HuggingFace
 import os
-_local_base = "ckpt/medgemma-4b-it"
-_local_adapter = "ckpt/flare25-medgemma"
+
+# Get absolute path to ckpt folder
+_config_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(_config_dir)))
+_local_base = os.path.join(_project_root, "ckpt/medgemma-4b-it")
+_local_adapter = os.path.join(_project_root, "ckpt/flare25-medgemma")
+
+# Debug: Print what we're checking
+print(f"[DEBUG] Checking for local model at: {_local_base}")
+print(f"[DEBUG] Exists: {os.path.exists(_local_base)}")
+print(f"[DEBUG] Checking for adapters at: {_local_adapter}")
+print(f"[DEBUG] Exists: {os.path.exists(_local_adapter)}")
 
 _model_path = _local_base if os.path.exists(_local_base) else "google/medgemma-4b-it"
 _adapter_path = _local_adapter if os.path.exists(_local_adapter) else "leoyinn/flare25-medgemma"
+
+print(f"[INFO] Using model: {_model_path}")
+print(f"[INFO] Using adapter: {_adapter_path}")
 
 # ============================================================================
 # Data Configuration

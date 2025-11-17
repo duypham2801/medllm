@@ -67,16 +67,28 @@ class MedGemmaPerception(GemmaForCausalLM):
     config_class = MedGemmaConfig
 
     def __init__(self, config: MedGemmaConfig):
-        # Fix for transformers >= 4.57: Ensure decoder_config is not a dict
+        # Fix for transformers >= 4.57: Convert dict configs to Config objects
         # This prevents AttributeError: 'dict' object has no attribute 'to_dict'
         # when GenerationConfig.from_model_config() is called
-        if hasattr(config, 'decoder_config') and isinstance(config.decoder_config, dict):
-            # Set to None instead of deleting - transformers will handle it properly
-            config.decoder_config = None
 
-        # Also check text_config (some Gemma configs use this)
+        if hasattr(config, 'decoder_config') and isinstance(config.decoder_config, dict):
+            # Convert dict to Config object
+            decoder_config_dict = config.decoder_config
+            config.decoder_config = type(config)(**decoder_config_dict)
+
+        # For text_config, preserve it as Gemma3 needs it for vocab_size
         if hasattr(config, 'text_config') and isinstance(config.text_config, dict):
-            config.text_config = None
+            from transformers import GemmaConfig
+            text_config_dict = config.text_config
+            config.text_config = GemmaConfig(**text_config_dict)
+
+            # Copy essential attributes from text_config to main config
+            # GemmaModel expects these at top level, not in text_config
+            essential_attrs = ['vocab_size', 'hidden_size', 'num_hidden_layers',
+                             'num_attention_heads', 'intermediate_size']
+            for attr in essential_attrs:
+                if hasattr(config.text_config, attr) and not hasattr(config, attr):
+                    setattr(config, attr, getattr(config.text_config, attr))
 
         super(MedGemmaPerception, self).__init__(config)
         self.config = config
@@ -221,9 +233,9 @@ class MedGemmaPerception(GemmaForCausalLM):
         1. Base google/medgemma-4b-it model
         2. LoRA adapters from leoyinn/flare25-medgemma (handled by builder)
         """
-        # Fix for transformers >= 4.57: Clean config before loading
+        # Fix for transformers >= 4.57: Convert dict configs to Config objects
         # Load config first to clean it
-        from transformers import AutoConfig
+        from transformers import AutoConfig, PretrainedConfig
 
         config = kwargs.get('config', None)
         if config is None:
@@ -232,11 +244,28 @@ class MedGemmaPerception(GemmaForCausalLM):
                 trust_remote_code=kwargs.get('trust_remote_code', True)
             )
 
-        # Clean decoder_config and text_config if they are dicts
+        # Convert decoder_config from dict to Config object if needed
         if hasattr(config, 'decoder_config') and isinstance(config.decoder_config, dict):
-            config.decoder_config = None
+            # Create a PretrainedConfig from the dict
+            decoder_config_dict = config.decoder_config
+            # Use the same config class as the main config
+            config.decoder_config = type(config)(**decoder_config_dict)
+
+        # Convert text_config from dict to Config object if needed
+        # BUT preserve it (don't set to None) as Gemma3 needs it for vocab_size
         if hasattr(config, 'text_config') and isinstance(config.text_config, dict):
-            config.text_config = None
+            text_config_dict = config.text_config
+            # Use GemmaConfig for text_config
+            from transformers import GemmaConfig
+            config.text_config = GemmaConfig(**text_config_dict)
+
+            # Copy essential attributes from text_config to main config
+            # GemmaModel expects these at top level, not in text_config
+            essential_attrs = ['vocab_size', 'hidden_size', 'num_hidden_layers',
+                             'num_attention_heads', 'intermediate_size']
+            for attr in essential_attrs:
+                if hasattr(config.text_config, attr) and not hasattr(config, attr):
+                    setattr(config, attr, getattr(config.text_config, attr))
 
         # Pass cleaned config
         kwargs['config'] = config
